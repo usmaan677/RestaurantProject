@@ -20,8 +20,8 @@ tooling (ESLint 10) asks for a newer version and prints `EBADENGINE` warnings.
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/usmaan677/RestaurantManagement.git
-cd RestaurantManagement
+git clone https://github.com/usmaan677/RestaurantProject.git
+cd RestaurantProject
 
 # 2. Move into the front end
 cd frontend
