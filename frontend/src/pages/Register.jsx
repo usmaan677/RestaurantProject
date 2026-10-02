@@ -11,7 +11,7 @@ function Register() {
   }
 
   return (
-    <div className="max-w-sm mx-auto">
+    <div className="max-w-sm mx-auto mt-20">
       <h1 className="text-3xl font-bold text-slate-800">Welcome!</h1>
       <p className="mt-2 text-slate-600">
         Create an account to get started. Your email will be your username.
@@ -39,6 +39,7 @@ function Register() {
           <input
             id="password"
             type="password"
+            minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required

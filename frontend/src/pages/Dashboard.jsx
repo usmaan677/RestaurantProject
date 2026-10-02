@@ -15,7 +15,7 @@ function Dashboard() {
       <div className="mt-6 rounded border border-slate-200 bg-white p-4">
         <h2 className="text-lg font-semibold text-slate-800">Current Queue</h2>
         <p className="mt-1 text-slate-600">
-          You are in line for <span className="font-medium">{currentQueue.name}</span> — position #
+          You are in line for <span className="font-medium">{currentQueue.name}</span>  position #
           {currentQueue.position} of {currentQueue.queue.length}, about {currentQueue.waitTime} minutes.
         </p>
         <Link to="/queue-status" className="mt-2 inline-block text-blue-600 hover:underline">

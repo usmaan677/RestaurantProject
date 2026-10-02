@@ -11,7 +11,7 @@ function LogIn() {
   }
 
   return (
-    <div className="max-w-sm mx-auto">
+    <div className="max-w-sm mx-auto mt-20">
       <h1 className="text-3xl font-bold text-slate-800">Log In</h1>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
