@@ -86,7 +86,7 @@ function ServiceManagement() {
         <div className="mt-4 border border-slate-200 bg-white p-4">
           <h2 className="text-xl font-semibold">Service</h2>
 
-          <label className="mt-4 block font-medium">Service Name</label>
+          <label className="mt-4 block font-medium">Service Name <small className="text-red-500">(required)</small></label>
           <input
             type="text"
             value={serviceName}
@@ -96,7 +96,7 @@ function ServiceManagement() {
             placeholder="Enter service name"
           />
 
-          <label className="mt-4 block font-medium">Description</label>
+          <label className="mt-4 block font-medium">Description <small className="text-red-500">(required)</small></label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -105,7 +105,7 @@ function ServiceManagement() {
           />
 
           <label className="mt-4 block font-medium">
-            Expected Duration (minutes)
+            Expected Duration (minutes) <small className="text-red-500">(required)</small>
           </label>
           <input
             type="number"
