@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
+// The queue lists come from the mockData file
 import { services } from '../mockData'
 
 function QueueStatus() {
+  // JoinQueue sends us the chosen service id. If it is missing, show the first service.
   const location = useLocation()
   const serviceId = location.state?.serviceId ?? services[0].id
   const service = services.find((s) => s.id === serviceId)
 
+  // Becomes true when the user clicks "Leave Queue".
+  // It only lives on this page, so it resets when the page reloads.
   const [left, setLeft] = useState(false)
 
+  // Nothing to show if the service wasn't found or the user left
   if (!service || left) {
     return (
       <div className="max-w-md mx-auto text-center">
@@ -32,6 +37,21 @@ function QueueStatus() {
         <p className="mt-2">
           Status: <span className="font-medium text-slate-800">{service.status}</span>
         </p>
+      </div>
+
+      {/* The whole line, in order, filled in from mockData */}
+      <div className="mt-6 rounded border border-slate-200 bg-white p-4">
+        <h2 className="text-lg font-semibold text-slate-800">Who's in line</h2>
+        <ol className="mt-2 flex flex-col gap-1">
+          {service.queue.map((person, index) => (
+            <li
+              key={person.id}
+              className={person.name === 'You' ? 'font-semibold text-blue-600' : 'text-slate-700'}
+            >
+              {index + 1}. {person.name}
+            </li>
+          ))}
+        </ol>
       </div>
 
       <button

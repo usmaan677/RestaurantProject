@@ -1,15 +1,20 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+// The list of services comes from the mockData file
 import { services } from '../mockData'
 
 function JoinQueue() {
+  // The id of the service picked in the dropdown ('' means nothing picked yet)
   const [selectedId, setSelectedId] = useState('')
+  // Error message shown under the dropdown
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
+  // Look up the full service object for the picked id (dropdown values are strings, so convert)
   const selectedService = services.find((s) => s.id === Number(selectedId))
 
   function handleJoin(e) {
+    // Stop the browser from reloading the page on submit
     e.preventDefault()
 
     if (!selectedId) {
@@ -18,6 +23,7 @@ function JoinQueue() {
     }
 
     setError('')
+    // Go to the status page and pass along which service was chosen
     navigate('/queue-status', { state: { serviceId: Number(selectedId) } })
   }
 
@@ -47,11 +53,12 @@ function JoinQueue() {
           {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
         </div>
 
+        {/* Details only appear once a service is picked */}
         {selectedService && (
           <div className="rounded border border-slate-200 bg-white p-3">
             <p className="text-slate-700">{selectedService.description}</p>
             <p className="mt-1 text-sm text-slate-600">
-              Estimated wait time: {selectedService.waitTime} minutes
+              {selectedService.queue.length} in line · Estimated wait time: {selectedService.waitTime} minutes
             </p>
           </div>
         )}
