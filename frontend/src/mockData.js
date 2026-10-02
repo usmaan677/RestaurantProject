@@ -8,6 +8,11 @@ export const services = [
     waitTime: 20,
     position: 3,
     status: 'Waiting',
+    queue: [
+      { id: 'dine-1', name: 'John Doe' },
+      { id: 'dine-2', name: 'Jimmy Lee' },
+      { id: 'dine-3', name: 'You' },
+    ],
   },
   {
     id: 2,
@@ -16,6 +21,7 @@ export const services = [
     waitTime: 10,
     position: 1,
     status: 'Almost Ready',
+    queue: [{ id: 'takeout-1', name: 'You' }],
   },
   {
     id: 3,
@@ -24,17 +30,25 @@ export const services = [
     waitTime: 35,
     position: 6,
     status: 'Waiting',
+    queue: [
+      { id: 'doordash-1', name: 'Taylor Swift' },
+      { id: 'doordash-2', name: 'Chris Brown' },
+      { id: 'doordash-3', name: 'Morgan Wallen' },
+      { id: 'doordash-4', name: 'Riley Wilson' },
+      { id: 'doordash-5', name: 'Jordan Taylor' },
+      { id: 'doordash-6', name: 'You' },
+    ],
   },
-]
+];
 
 export const notifications = [
   { id: 1, message: 'Your Dine In queue position moved up to #3.', time: '2 mins ago' },
   { id: 2, message: 'Take Out orders are almost ready.', time: '10 mins ago' },
   { id: 3, message: 'Welcome to QueueSmart!', time: '1 hour ago' },
-]
+];
 
 export const history = [
   { id: 1, service: 'Dine In', date: '2026-09-20', outcome: 'Served' },
   { id: 2, service: 'Take Out', date: '2026-09-18', outcome: 'Served' },
   { id: 3, service: 'DoorDash', date: '2026-09-15', outcome: 'Cancelled' },
-]
+];
