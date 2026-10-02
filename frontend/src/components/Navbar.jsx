@@ -24,6 +24,12 @@ function Navbar() {
         <NavLink to="/admin-queue" className={({ isActive }) => isActive ? 'font-semibold text-slate-900' : 'text-slate-600 hover:text-slate-900'}>
           Admin Queue
         </NavLink>
+        <NavLink to="/admin" className={({ isActive }) => isActive ? 'font-semibold text-slate-900' : 'text-slate-600 hover:text-slate-900'}>
+          Admin Dashboard
+        </NavLink>
+        <NavLink to="/admin/services" className={({ isActive }) => isActive ? 'font-semibold text-slate-900' : 'text-slate-600 hover:text-slate-900'}>
+          Service Management
+          </NavLink>
         <NavLink to="/login" className={({ isActive }) => isActive ? 'font-semibold text-slate-900' : 'text-slate-600 hover:text-slate-900'}>
           Log In
         </NavLink>
