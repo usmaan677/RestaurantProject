@@ -1,3 +1,4 @@
+// The past queues come from the mockData file
 import { history } from '../mockData'
 
 function History() {
@@ -15,6 +16,7 @@ function History() {
           </tr>
         </thead>
         <tbody>
+          {/* One table row for every entry in mockData */}
           {history.map((item) => (
             <tr key={item.id} className="border-b border-slate-100 last:border-0">
               <td className="px-4 py-2 text-slate-600">{item.date}</td>

@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
+// All the data on this page comes from the mockData file
 import { services, notifications } from '../mockData'
 
 function Dashboard() {
+  // Use the first service as the queue the user is currently in
   const currentQueue = services[0]
 
   return (
@@ -9,17 +11,19 @@ function Dashboard() {
       <h1 className="text-3xl font-bold text-slate-800">Dashboard</h1>
       <p className="mt-2 text-slate-600">Here's what's happening with your orders.</p>
 
+      {/* Box showing the queue the user is in right now */}
       <div className="mt-6 rounded border border-slate-200 bg-white p-4">
         <h2 className="text-lg font-semibold text-slate-800">Current Queue</h2>
         <p className="mt-1 text-slate-600">
           You are in line for <span className="font-medium">{currentQueue.name}</span> — position #
-          {currentQueue.position}, about {currentQueue.waitTime} minutes.
+          {currentQueue.position} of {currentQueue.queue.length}, about {currentQueue.waitTime} minutes.
         </p>
         <Link to="/queue-status" className="mt-2 inline-block text-blue-600 hover:underline">
           View queue status
         </Link>
       </div>
 
+      {/* One row for every service in mockData */}
       <div className="mt-6 rounded border border-slate-200 bg-white p-4">
         <h2 className="text-lg font-semibold text-slate-800">Active Services</h2>
         <ul className="mt-2 flex flex-col gap-2">
@@ -27,7 +31,9 @@ function Dashboard() {
             <li key={service.id} className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0">
               <div>
                 <p className="font-medium text-slate-800">{service.name}</p>
-                <p className="text-sm text-slate-600">{service.waitTime} min wait</p>
+                <p className="text-sm text-slate-600">
+                  {service.queue.length} in line · {service.waitTime} min wait
+                </p>
               </div>
               <Link to="/join-queue" className="text-sm text-blue-600 hover:underline">
                 Join
@@ -37,6 +43,7 @@ function Dashboard() {
         </ul>
       </div>
 
+      {/* One row for every notification in mockData */}
       <div className="mt-6 rounded border border-slate-200 bg-white p-4">
         <h2 className="text-lg font-semibold text-slate-800">Notifications</h2>
         <ul className="mt-2 flex flex-col gap-2">
