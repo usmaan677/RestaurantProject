@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pydantic[email]
+pytest
+pytest-cov
+httpx
