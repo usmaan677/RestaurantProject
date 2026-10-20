@@ -1,13 +1,46 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 function LogIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const navigate = useNavigate()
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    console.log('Logging in with:', email, password)
+    setError('')
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        // 422 errors come back as a list, others as a sentence
+        throw new Error(
+          Array.isArray(result.detail)
+            ? result.detail.map((item) => item.msg).join(', ')
+            : result.detail || 'Could not log in.'
+        )
+      }
+
+      // Remember who is logged in (other pages read this)
+      localStorage.setItem('user', JSON.stringify(result))
+
+      // Admins go to the admin page, users go to the dashboard
+      if (result.role === 'admin') {
+        navigate('/admin')
+      } else {
+        navigate('/')
+      }
+    } catch (err) {
+      setError(err.message || 'Could not connect to the backend.')
+    }
   }
 
   return (
@@ -42,7 +75,7 @@ function LogIn() {
             className="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
           />
         </div>
-
+        {error && <p className="text-sm text-red-500">{error}</p>}
         <button
           type="submit"
           className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"

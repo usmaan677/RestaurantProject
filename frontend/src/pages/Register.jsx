@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 function Register() {
   const [email, setEmail] = useState('')
@@ -7,7 +7,9 @@ function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
 
-  function handleSubmit(e) {
+  const navigate = useNavigate()
+
+  async function handleSubmit(e) {
     e.preventDefault()
 
     // Stop here if the two passwords are different
@@ -17,7 +19,34 @@ function Register() {
     }
 
     setError('')
-    console.log('Registering with:', email, password)
+
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          confirm_password: confirmPassword,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          Array.isArray(result.detail)
+            ? result.detail.map((item) => item.msg).join(', ')
+            : result.detail || 'Could not register.'
+        )
+      }
+
+      // Log them in right away after registering
+      localStorage.setItem('user', JSON.stringify(result))
+      navigate('/')
+    } catch (err) {
+      setError(err.message || 'Could not connect to the backend.')
+    }
   }
 
   return (

@@ -20,8 +20,10 @@ class ServiceUpdate(BaseModel):
 
 # ---------- 2. DATA (fake database for now) ----------
 
-services = []
-next_service_id = 1
+services = [{"id": 1, "name": "Dine In", "description": "Sit down and enjoy your meal at the restaurant.", "expected_duration": 20, "priority": 3},
+    {"id": 2, "name": "Take Out", "description": "Pick up your order at the front counter.", "expected_duration": 10, "priority": 3},
+    {"id": 3, "name": "DoorDash", "description": "Have your order delivered to your door.", "expected_duration": 35, "priority": 3},]
+next_service_id = 4
 
 
 # ---------- 3. LOGIC (the rules) ----------

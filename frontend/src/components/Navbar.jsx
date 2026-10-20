@@ -1,11 +1,22 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FaRegBell } from 'react-icons/fa'
 import { notifications } from '../mockData'
 
 function Navbar() {
   // Keeps track of which dropdown is open: 'queue', 'admin', 'bell', or '' (none)
   const [openMenu, setOpenMenu] = useState('')
+  useLocation()
+  const navigate = useNavigate()
+
+  // Who is logged in (saved by the LogIn / Register pages), or null if nobody
+  const user = JSON.parse(localStorage.getItem('user'))
+
+  function logOut() {
+    localStorage.removeItem('user')
+    closeMenu()
+    navigate('/login')
+  }
 
   // Opens a menu, or closes it if it is already open
   function toggleMenu(menuName) {
@@ -55,29 +66,41 @@ function Navbar() {
         </div>
 
         {/* Admin dropdown */}
-        <div className="relative">
-          <button onClick={() => toggleMenu('admin')} className="text-slate-600 hover:text-slate-900">
-            Admin ▾
-          </button>
+        {user?.role === 'admin' && (
+          <div className="relative">
+            <button onClick={() => toggleMenu('admin')} className="text-slate-600 hover:text-slate-900">
+              Admin ▾
+            </button>
 
-          {openMenu === 'admin' && (
-            <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded shadow">
-              <NavLink to="/admin" end className={dropdownLinkStyle} onClick={closeMenu}>
-                Admin Dashboard
-              </NavLink>
-              <NavLink to="/admin/services" className={dropdownLinkStyle} onClick={closeMenu}>
-                Admin Services
-              </NavLink>
-              <NavLink to="/admin-queue" className={dropdownLinkStyle} onClick={closeMenu}>
-                Admin Queue
-              </NavLink>
-            </div>
-          )}
-        </div>
+            {openMenu === 'admin' && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded shadow">
+                <NavLink to="/admin" end className={dropdownLinkStyle} onClick={closeMenu}>
+                  Admin Dashboard
+                </NavLink>
+                <NavLink to="/admin/services" className={dropdownLinkStyle} onClick={closeMenu}>
+                  Admin Services
+                </NavLink>
+                <NavLink to="/admin-queue" className={dropdownLinkStyle} onClick={closeMenu}>
+                  Admin Queue
+                </NavLink>
+              </div>
+            )}
+          </div>
+        )}
 
-        <NavLink to="/login" className={linkStyle} onClick={closeMenu}>
-          Log In
-        </NavLink>
+        {user ? (
+          <>
+            <span className="text-sm text-slate-500">{user.email}</span>
+            <button onClick={logOut} className="text-slate-600 hover:text-slate-900">
+              Log Out
+            </button>
+          </>
+        ) : (
+          <NavLink to="/login" className={linkStyle} onClick={closeMenu}>
+            Log In
+          </NavLink>
+        )}
+
 
         {/* Notification bell dropdown */}
         <div className="relative">
