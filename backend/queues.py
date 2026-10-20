@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
+import auth
 import history
 import services
 
@@ -16,6 +17,9 @@ class QueueJoin(BaseModel):
 class QueueLeave(BaseModel):
     email: EmailStr
     service_id: int = Field(..., gt=0)
+
+class AdminQueueAction(BaseModel):
+    email: EmailStr
 
 
 # ---------- 2. DATA (fake database for now) ----------
@@ -113,6 +117,17 @@ def get_queue_count(service_id: int):
     return len(get_queue_for_service(service_id))
 
 
+def serve_next(service_id: int):
+    ordered = get_queue_for_service(service_id)
+
+    if not ordered:
+        return None
+
+    entry = ordered[0]
+    queue_entries.remove(entry)
+    return entry
+
+
 # ---------- 4. ROUTES (the URLs the frontend calls) ----------
 
 @router.post("/join")
@@ -164,6 +179,42 @@ def get_position_route(service_id: int, email: str):
 def get_my_queues_route(email: str):
     entries = get_entries_for_email(email)
     return [build_status(entry["service_id"], entry["email"]) for entry in entries]
+
+
+@router.get("/{service_id}/admin")
+def get_admin_queue_route(service_id: int, email: EmailStr):
+    if not auth.is_admin(str(email)):
+        raise HTTPException(status_code=403, detail="Administrator access required")
+
+    service = services.get_service(service_id)
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    return [
+        {
+            **entry,
+            "position": position,
+            "estimated_wait": calculate_wait(service_id, position),
+        }
+        for position, entry in enumerate(get_queue_for_service(service_id), start=1)
+    ]
+
+
+@router.post("/{service_id}/serve-next")
+def serve_next_route(service_id: int, action: AdminQueueAction):
+    if not auth.is_admin(str(action.email)):
+        raise HTTPException(status_code=403, detail="Administrator access required")
+
+    service = services.get_service(service_id)
+    if service is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    entry = serve_next(service_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Queue is empty")
+
+    history.add_history_entry(entry["email"], service_id, service["name"], "Served")
+    return entry
 
 
 @router.get("/{service_id}/count")
