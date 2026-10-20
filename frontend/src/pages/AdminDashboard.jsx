@@ -1,24 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 function AdminDashboard() {
-    const [services, setServices] = useState([
-  {
-    name: 'Dine In',
-    queueLength: 8,
-    isOpen: true,
-  },
-  {
-    name: 'Take Out',
-    queueLength: 4,
-    isOpen: true,
-  },
-  {
-    name: 'DoorDash',
-    queueLength: 2,
-    isOpen: false,
-  },
-])
-  
+    // Stores the services retrieved from the backend
+    const [services, setServices] = useState([])
+
+    // Loades services when dashboard opens
+    useEffect(() => {
+      async function loadServices() {
+        try {
+          const response = await fetch('/api/services/')
+
+          if (!response.ok) {
+            throw new Error('Could not load services.')
+          }
+
+          const data = await response.json()
+          setServices(data)
+        } catch (error) {
+          console.error('Error loading services:', error)
+        }
+      }
+
+      loadServices()
+    }, [])
+
     return (
     <div>
       <h1 className="text-3xl font-bold">Admin Dashboard</h1>
@@ -27,11 +32,14 @@ function AdminDashboard() {
       <div className="mt-6">
         <h2 className="text-xl font-semibold">Services</h2>
 
+        {/* Displays the services returned by the backend */}
         <div className="mt-4">
             {services.map((service) => (
                 <div className="mb-3 border border-slate-200 bg-white p-4" key={service.name}>
                     <h3 className="font-semibold">{service.name}</h3>
-                    <p className="mt-1">Queue length: {service.queueLength}</p>
+                    <p className="mt-1">
+                      Expected duration: {service.expected_duration} minutes
+                    </p>
                     <p className="mt-1">
                         Status: {service.isOpen ? 'Open' : 'Closed'}
                     </p>
