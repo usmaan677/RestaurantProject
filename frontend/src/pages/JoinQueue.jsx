@@ -1,31 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-// There's no login system yet, so we make up an id for this browser
-// and remember it, so the backend can tell "you" apart from other users.
-function getUserId() {
-  let id = localStorage.getItem('queuesmart_user_id')
-
-  if (!id) {
-    id = String(Math.floor(Math.random() * 1000000) + 1)
-    localStorage.setItem('queuesmart_user_id', id)
-  }
-
-  return Number(id)
-}
-
 function JoinQueue() {
-  // Services loaded from the backend
+  const user = JSON.parse(localStorage.getItem('user'))
+
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
-  // The id of the service picked in the dropdown ('' means nothing picked yet)
   const [selectedId, setSelectedId] = useState('')
   const [joining, setJoining] = useState(false)
-  // Error message shown under the dropdown
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  // Load the real list of services when the page opens
   useEffect(() => {
     async function loadServices() {
       try {
@@ -46,11 +31,9 @@ function JoinQueue() {
     loadServices()
   }, [])
 
-  // Look up the full service object for the picked id (dropdown values are strings, so convert)
   const selectedService = services.find((s) => s.id === Number(selectedId))
 
   async function handleJoin(e) {
-    // Stop the browser from reloading the page on submit
     e.preventDefault()
 
     if (!selectedId) {
@@ -66,7 +49,7 @@ function JoinQueue() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: getUserId(),
+          email: user.email,
           service_id: Number(selectedId),
           priority: 1,
         }),
@@ -74,19 +57,25 @@ function JoinQueue() {
 
       const result = await response.json()
 
-      // A 400 here just means we already joined this queue before - that's fine,
-      // go straight to the status page instead of showing an error.
       if (!response.ok && response.status !== 400) {
         throw new Error(result.detail || 'Could not join the queue.')
       }
 
-      // Go to the status page and pass along which service was chosen
-      navigate('/queue-status', { state: { serviceId: Number(selectedId) } })
+      navigate('/queue-status')
     } catch (err) {
       setError(err.message || 'Could not connect to the backend.')
     } finally {
       setJoining(false)
     }
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-md mx-auto text-center">
+        <h1 className="text-3xl font-bold text-slate-800">Join a Queue</h1>
+        <p className="mt-4 text-slate-600">Please log in to join a queue.</p>
+      </div>
+    )
   }
 
   return (
@@ -115,7 +104,6 @@ function JoinQueue() {
           {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
         </div>
 
-        {/* Details only appear once a service is picked */}
         {selectedService && (
           <div className="rounded border border-slate-200 bg-white p-3">
             <p className="text-slate-700">{selectedService.description}</p>

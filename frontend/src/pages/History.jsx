@@ -1,7 +1,47 @@
-// The past queues come from the mockData file
-import { history } from '../mockData'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 function History() {
+  const user = JSON.parse(localStorage.getItem('user'))
+
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    async function loadHistory() {
+      const response = await fetch(`/api/history?email=${encodeURIComponent(user.email)}`)
+      setHistory(response.ok ? await response.json() : [])
+      setLoading(false)
+    }
+
+    loadHistory()
+  }, [])
+
+  if (!user) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-slate-800">Queue History</h1>
+        <p className="mt-4 text-slate-600">
+          Please <Link to="/login" className="text-blue-600 hover:underline">log in</Link> to see your queue history.
+        </p>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-slate-800">Queue History</h1>
+        <p className="mt-4 text-slate-600">Loading...</p>
+      </div>
+    )
+  }
+
   return (
     <div>
       <h1 className="text-3xl font-bold text-slate-800">Queue History</h1>
@@ -16,11 +56,15 @@ function History() {
           </tr>
         </thead>
         <tbody>
-          {/* One table row for every entry in mockData */}
+          {history.length === 0 && (
+            <tr>
+              <td className="px-4 py-2 text-slate-600" colSpan={3}>No queue history yet.</td>
+            </tr>
+          )}
           {history.map((item) => (
             <tr key={item.id} className="border-b border-slate-100 last:border-0">
               <td className="px-4 py-2 text-slate-600">{item.date}</td>
-              <td className="px-4 py-2 text-slate-600">{item.service}</td>
+              <td className="px-4 py-2 text-slate-600">{item.service_name}</td>
               <td className="px-4 py-2 text-slate-600">{item.outcome}</td>
             </tr>
           ))}
