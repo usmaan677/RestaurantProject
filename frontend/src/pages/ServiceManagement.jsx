@@ -35,6 +35,7 @@ function ServiceManagement() {
   }
   // Loads services when the page first opens
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadServices()
   }, [])
 
