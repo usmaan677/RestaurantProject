@@ -371,3 +371,78 @@ def test_get_queue_count_route_service_not_found():
     response = client.get("/api/queues/999/count")
 
     assert response.status_code == 404
+
+
+def test_admin_can_view_queue_in_priority_and_arrival_order():
+    service_id = create_test_service(expected_duration=10)
+    client.post("/api/queues/join", json={"email": "alice@gmail.com", "service_id": service_id, "priority": 3})
+    client.post("/api/queues/join", json={"email": "bob@gmail.com", "service_id": service_id, "priority": 5})
+    client.post("/api/queues/join", json={"email": "carol@gmail.com", "service_id": service_id, "priority": 5})
+
+    response = client.get(f"/api/queues/{service_id}/admin?email=admin@queuesmart.com")
+
+    assert response.status_code == 200
+    assert [entry["email"] for entry in response.json()] == [
+        "bob@gmail.com",
+        "carol@gmail.com",
+        "alice@gmail.com",
+    ]
+    assert [entry["position"] for entry in response.json()] == [1, 2, 3]
+    assert [entry["estimated_wait"] for entry in response.json()] == [10, 20, 30]
+
+
+def test_admin_queue_view_requires_admin():
+    service_id = create_test_service()
+
+    response = client.get(f"/api/queues/{service_id}/admin?email=user@queuesmart.com")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Administrator access required"
+
+
+def test_admin_queue_view_service_not_found():
+    response = client.get("/api/queues/999/admin?email=admin@queuesmart.com")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Service not found"
+
+
+def test_admin_can_serve_next_user():
+    service_id = create_test_service()
+    client.post("/api/queues/join", json={"email": "alice@gmail.com", "service_id": service_id, "priority": 2})
+    client.post("/api/queues/join", json={"email": "bob@gmail.com", "service_id": service_id, "priority": 5})
+
+    response = client.post(
+        f"/api/queues/{service_id}/serve-next",
+        json={"email": "admin@queuesmart.com"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["email"] == "bob@gmail.com"
+    assert client.get(f"/api/queues/{service_id}/count").json()["count"] == 1
+    history_response = client.get("/api/history?email=bob@gmail.com")
+    assert history_response.json()[0]["outcome"] == "Served"
+
+
+def test_serving_next_requires_admin():
+    service_id = create_test_service()
+
+    response = client.post(
+        f"/api/queues/{service_id}/serve-next",
+        json={"email": "user@queuesmart.com"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Administrator access required"
+
+
+def test_serving_next_from_empty_queue_returns_not_found():
+    service_id = create_test_service()
+
+    response = client.post(
+        f"/api/queues/{service_id}/serve-next",
+        json={"email": "admin@queuesmart.com"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Queue is empty"

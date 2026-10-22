@@ -1,232 +1,233 @@
-import { useState } from "react";
-import { services } from "../mockData";
-
-// Services may or may not have an `id`, so fall back to `name` as the lookup key.
-// Always coerced to a string because <select> values are strings.
-// if two services share a name and have no id, their keys will collide.
-const getServiceKey = (service) => String(service.id ?? service.name);
+import { useEffect, useState } from "react";
 
 function AdminQueue() {
-  // Which service the admin is currently viewing. Defaults to the first one,
-  // or "" if there are no services at all.
-  const [selectedServiceKey, setSelectedServiceKey] = useState(
-    services[0] ? getServiceKey(services[0]) : "",
-  );
-
-  // All queues live in one object keyed by service key: { [serviceKey]: Person[] }.
-  // The lazy initializer (function form of useState) runs only on the first render.
-  const [queues, setQueues] = useState(() =>
-    Object.fromEntries(
-      services.map((service) => {
-        const serviceKey = getServiceKey(service);
-        const initialQueue = Array.isArray(service.queue) ? service.queue : [];
-
-        return [
-          serviceKey,
-          // Normalize every queue entry into { id, name, ...rest } so the rest of the
-          // component can rely on a consistent shape. The mock data can contain:
-          //   - plain strings (just a name), or
-          //   - objects with `name` or `customerName`, and maybe no `id`.
-          initialQueue.map((person, index) =>
-            typeof person === "string"
-              ? { id: `${serviceKey}-${index}`, name: person }
-              : {
-                  ...person,
-                  // `id` is used as the React key and for removal, so it must be unique per queue.
-                  id: person.id ?? `${serviceKey}-${index}`,
-                  name:
-                    person.name ??
-                    person.customerName ??
-                    `Customer ${index + 1}`,
-                },
-          ),
-        ];
-      }),
-    ),
-  );
-
-  // Status message shown after an action (remove / serve). Cleared on service change.
+  const adminEmail = JSON.parse(localStorage.getItem("user") || "null")?.email;
+  const [services, setServices] = useState([]);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [queue, setQueue] = useState([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [loadingQueue, setLoadingQueue] = useState(false);
+  const [serving, setServing] = useState(false);
+  const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  // Derived values: computed on each render, not stored in state.
-  const selectedService = services.find(
-    (service) => getServiceKey(service) === selectedServiceKey,
-  );
-  const queue = queues[selectedServiceKey] ?? [];
+  useEffect(() => {
+    let isActive = true;
 
-  // Single entry point for every queue change (move, remove, serve).
-  // It updates both React state and the shared mock data.
-  function saveQueue(nextQueue) {
-    if (selectedService) {
-      // Update the mock data so other parts of the app can read the changes.
-      selectedService.queue = nextQueue;
+    async function loadServices() {
+      try {
+        const response = await fetch("/api/services/");
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Could not load services.");
+        }
+
+        if (isActive) {
+          setServices(data);
+          setSelectedServiceId(data.length ? String(data[0].id) : "");
+        }
+      } catch (err) {
+        if (isActive) {
+          setError(err.message || "Could not connect to the backend.");
+        }
+      } finally {
+        if (isActive) {
+          setLoadingServices(false);
+        }
+      }
     }
 
-    // Functional update so we never overwrite other services' queues with stale data.
-    setQueues((current) => ({
-      ...current,
-      [selectedServiceKey]: nextQueue,
-    }));
+    loadServices();
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedServiceId || !adminEmail) return;
+
+    let isActive = true;
+
+    async function loadQueue() {
+      try {
+        setLoadingQueue(true);
+        setError("");
+        const response = await fetch(
+          `/api/queues/${selectedServiceId}/admin?email=${encodeURIComponent(adminEmail)}`,
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            Array.isArray(data.detail)
+              ? data.detail.map((item) => item.msg).join(", ")
+              : data.detail || "Could not load the queue.",
+          );
+        }
+
+        if (isActive) {
+          setQueue(data);
+        }
+      } catch (err) {
+        if (isActive) {
+          setError(err.message || "Could not connect to the backend.");
+        }
+      } finally {
+        if (isActive) {
+          setLoadingQueue(false);
+        }
+      }
+    }
+
+    loadQueue();
+    return () => {
+      isActive = false;
+    };
+  }, [selectedServiceId, adminEmail]);
+
+  async function serveNext() {
+    if (!selectedServiceId || !adminEmail || queue.length === 0) return;
+
+    setServing(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch(
+        `/api/queues/${selectedServiceId}/serve-next`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: adminEmail }),
+        },
+      );
+      const served = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          Array.isArray(served.detail)
+            ? served.detail.map((item) => item.msg).join(", ")
+            : served.detail || "Could not serve the next user.",
+        );
+      }
+
+      setNotice(`${served.email} is being served.`);
+
+      const queueResponse = await fetch(
+        `/api/queues/${selectedServiceId}/admin?email=${encodeURIComponent(adminEmail)}`,
+      );
+      const updatedQueue = await queueResponse.json();
+
+      if (!queueResponse.ok) {
+        throw new Error(
+          Array.isArray(updatedQueue.detail)
+            ? updatedQueue.detail.map((item) => item.msg).join(", ")
+            : updatedQueue.detail || "Could not refresh the queue.",
+        );
+      }
+
+      setQueue(updatedQueue);
+    } catch (err) {
+      setError(err.message || "Could not connect to the backend.");
+    } finally {
+      setServing(false);
+    }
   }
 
-  // Swap a person with their neighbor. `direction` is -1 (up) or +1 (down).
-  function movePerson(index, direction) {
-    const newIndex = index + direction;
-    // Guard against moving past either end (buttons are also disabled in the UI).
-    if (newIndex < 0 || newIndex >= queue.length) return;
-
-
-    const updatedQueue = [...queue];
-    // Destructuring swap of the two entries.
-    [updatedQueue[index], updatedQueue[newIndex]] = [
-      updatedQueue[newIndex],
-      updatedQueue[index],
-    ];
-
-    saveQueue(updatedQueue);
-  }
-
-  // Remove by `id` rather than index so the right person is removed even if the list changes.
-  function removePerson(person) {
-    saveQueue(queue.filter((item) => item.id !== person.id));
-    setNotice(`${person.name} was removed from the queue.`);
-  }
-
-  // The queue is first-in-first-out: serving takes the person at position 0.
-  function serveNext() {
-    if (queue.length === 0) return;
-
-    const nextPerson = queue[0];
-    saveQueue(queue.slice(1)); // slice returns a new array without the first item
-    setNotice(`${nextPerson.name} is being served.`);
-  }
+  const selectedService = services.find(
+    (service) => String(service.id) === selectedServiceId,
+  );
 
   return (
     <main className="mx-auto max-w-2xl p-6">
       <h1 className="text-3xl font-bold text-slate-800">Manage Queues</h1>
       <p className="mt-2 text-slate-600">
-        View and manage the queue for each service.
+        View and serve users waiting for each service.
       </p>
 
-      {/* Empty state: nothing to select, so skip the whole controls section. */}
-      {services.length === 0 ? (
+      {loadingServices && <p className="mt-6">Loading services...</p>}
+      {error && <p className="mt-4 text-red-600" role="alert">{error}</p>}
+
+      {!loadingServices && services.length === 0 ? (
         <p className="mt-6 text-slate-600">No services are available.</p>
       ) : (
-        <>
-          {/* htmlFor/id pairing keeps the select accessible to screen readers. */}
-          <label
-            htmlFor="service"
-            className="mt-6 block text-sm font-medium text-slate-700"
-          >
-            Service
-          </label>
+        !loadingServices && (
+          <>
+            <label
+              htmlFor="service"
+              className="mt-6 block text-sm font-medium text-slate-700"
+            >
+              Service
+            </label>
+            <select
+              id="service"
+              value={selectedServiceId}
+              onChange={(event) => {
+                setSelectedServiceId(event.target.value);
+                setNotice("");
+                setError("");
+              }}
+              className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
+            >
+              {services.map((service) => (
+                <option key={service.id} value={service.id}>
+                  {service.name}
+                </option>
+              ))}
+            </select>
 
-          <select
-            id="service"
-            value={selectedServiceKey}
-            onChange={(event) => {
-              setSelectedServiceKey(event.target.value);
-              // Clear the notice so a message about one service
-              // doesn't appear under a different one.
-              setNotice("");
-            }}
-            className="mt-2 w-full rounded-md border border-slate-300 bg-white px-3 py-2"
-          >
-            {services.map((service) => (
-              <option
-                key={getServiceKey(service)}
-                value={getServiceKey(service)}
-              >
-                {service.name}
-              </option>
-            ))}
-          </select>
+            <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-xl font-semibold text-slate-800">
+                  {selectedService?.name} queue
+                </h2>
+                <button
+                  type="button"
+                  onClick={serveNext}
+                  disabled={queue.length === 0 || loadingQueue || serving}
+                  className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {serving ? "Serving..." : "Serve next"}
+                </button>
+              </div>
 
-          <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-semibold text-slate-800">
-                {selectedService?.name} queue
-              </h2>
+              {notice && (
+                <p className="mt-3 text-sm text-green-700" role="status">
+                  {notice}
+                </p>
+              )}
 
-              {/* Disabled when empty so the admin can't serve nobody. */}
-              <button
-                type="button"
-                onClick={serveNext}
-                disabled={queue.length === 0}
-                className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                Serve next
-              </button>
-            </div>
-
-            {/* role="status" makes screen readers announce the message when it appears. */}
-            {notice && (
-              <p className="mt-3 text-sm text-green-700" role="status">
-                {notice}
-              </p>
-            )}
-
-            {queue.length === 0 ? (
-              <p className="mt-6 text-slate-500">This queue is empty.</p>
-            ) : (
-              // <ol> because order matters in a queue.
-              <ol className="mt-4 divide-y divide-slate-200">
-                {queue.map((person, index) => (
-                  // Use the stable person.id as the key, not the index,
-                  // so React tracks rows correctly when they are reordered.
-                  <li
-                    key={person.id}
-                    className="flex items-center justify-between gap-4 py-3"
-                  >
-                    <div>
-                      <span className="mr-3 text-sm text-slate-500">
-                        {index + 1}.
-                      </span>
-                      <span className="font-medium text-slate-800">
-                        {person.name}
-                      </span>
-                    </div>
-
-                    <div className="flex shrink-0 gap-2">
-                      {/* aria-labels include the person's name so each button is
-                          distinguishable to screen readers. The first person can't
-                          move up and the last can't move down. */}
-                      <button
-                        type="button"
-                        onClick={() => movePerson(index, -1)}
-                        disabled={index === 0}
-                        aria-label={`Move ${person.name} up`}
-                        className="rounded border border-slate-300 px-3 py-1 text-sm disabled:opacity-40"
-                      >
-                        Up
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => movePerson(index, 1)}
-                        disabled={index === queue.length - 1}
-                        aria-label={`Move ${person.name} down`}
-                        className="rounded border border-slate-300 px-3 py-1 text-sm disabled:opacity-40"
-                      >
-                        Down
-                      </button>
-
-                      {/* Removal is immediate with no confirmation step. I'll consider adding
-                          one if accidental clicks become a problem. */}
-                      <button
-                        type="button"
-                        onClick={() => removePerson(person)}
-                        className="rounded border border-red-300 px-3 py-1 text-sm text-red-700 hover:bg-red-50"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-        </>
+              {loadingQueue ? (
+                <p className="mt-6 text-slate-500">Loading queue...</p>
+              ) : queue.length === 0 ? (
+                <p className="mt-6 text-slate-500">This queue is empty.</p>
+              ) : (
+                <ol className="mt-4 divide-y divide-slate-200">
+                  {queue.map((person, index) => (
+                    <li
+                      key={person.id}
+                      className="flex items-center justify-between gap-4 py-3"
+                    >
+                      <div>
+                        <span className="mr-3 text-sm text-slate-500">
+                          {index + 1}.
+                        </span>
+                        <span className="font-medium text-slate-800">
+                          {person.email}
+                        </span>
+                        <p className="ml-7 mt-1 text-sm text-slate-500">
+                          Priority {person.priority} · estimated wait{" "}
+                          {person.estimated_wait} minutes
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          </>
+        )
       )}
     </main>
   );
