@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, Field
+import notifications
 
 import history
 import services
@@ -90,18 +91,27 @@ def join_queue(join_data: QueueJoin):
     queue_entries.append(entry)
     next_entry_id += 1
 
-    return build_status(entry["service_id"], entry["email"])
+    status = build_status(join_data.service_id, join_data.email)
+    service = services.get_service(join_data.service_id)
+
+    notifications.add_notification(
+        join_data.email.lower(),
+        f"You joined the {service['name']} queue. You are #{status['position']}.",
+    )
+    notify_close_users(join_data.service_id)
+
+    return status
 
 
 def leave_queue(leave_data: QueueLeave):
-    email = leave_data.email.lower()
-
     for entry in queue_entries:
-        if entry["service_id"] == leave_data.service_id and entry["email"] == email:
+        if entry["service_id"] == leave_data.service_id and entry["email"] == leave_data.email.lower():
             queue_entries.remove(entry)
+            notify_close_users(leave_data.service_id)  # everyone behind moved up
             return entry
 
     return None
+
 
 
 def get_entries_for_email(email: str):
@@ -111,6 +121,19 @@ def get_entries_for_email(email: str):
 
 def get_queue_count(service_id: int):
     return len(get_queue_for_service(service_id))
+
+CLOSE_POSITION = 2  
+
+
+def notify_close_users(service_id: int):
+    service = services.get_service(service_id)
+    ordered = get_queue_for_service(service_id)
+
+    for entry in ordered[:CLOSE_POSITION]:
+        message = f"You're almost up for {service['name']}!"
+
+        if not notifications.has_notification(entry["email"], message):
+            notifications.add_notification(entry["email"], message)
 
 
 # ---------- 4. ROUTES (the URLs the frontend calls) ----------

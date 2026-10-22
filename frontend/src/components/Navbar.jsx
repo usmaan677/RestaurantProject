@@ -1,7 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FaRegBell } from 'react-icons/fa'
-import { notifications } from '../mockData'
 
 function Navbar() {
   // Keeps track of which dropdown is open: 'queue', 'admin', 'bell', or '' (none)
@@ -11,6 +10,24 @@ function Navbar() {
 
   // Who is logged in (saved by the LogIn / Register pages), or null if nobody
   const user = JSON.parse(localStorage.getItem('user'))
+
+  // Notifications for the logged-in user, loaded from the backend
+  const [notifications, setNotifications] = useState([])
+
+  // Runs every time a menu opens or closes, so the bell always shows the latest notifications
+  useEffect(() => {
+    async function loadNotifications() {
+      if (!user) return
+
+      const response = await fetch(`/api/notifications/${encodeURIComponent(user.email)}`)
+      if (response.ok) {
+        const data = await response.json()
+        setNotifications(data)
+      }
+    }
+
+    loadNotifications()
+  }, [openMenu])
 
   function logOut() {
     localStorage.removeItem('user')

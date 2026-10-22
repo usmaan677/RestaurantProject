@@ -3,6 +3,7 @@ from main import app
 import history
 import queues
 import services
+import notifications
 
 client = TestClient(app)
 
@@ -14,6 +15,8 @@ def setup_function():
     services.next_service_id = 1
     history.history_entries.clear()
     history.next_history_id = 1
+    notifications.notifications.clear()
+    notifications.next_notification_id = 1
 
 
 def create_test_service(expected_duration=15, priority=3):

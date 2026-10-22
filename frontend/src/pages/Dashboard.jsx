@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { notifications } from '../mockData'
+
 
 function Dashboard() {
   const user = JSON.parse(localStorage.getItem('user'))
@@ -9,10 +9,10 @@ function Dashboard() {
   const [counts, setCounts] = useState({})
   const [myQueues, setMyQueues] = useState([])
   const [loading, setLoading] = useState(true)
+  const [notifications, setNotifications] = useState([])
 
   useEffect(() => {
     if (!user) {
-      setLoading(false)
       return
     }
 
@@ -32,6 +32,9 @@ function Dashboard() {
 
       const myQueuesResponse = await fetch(`/api/queues/mine?email=${encodeURIComponent(user.email)}`)
       setMyQueues(myQueuesResponse.ok ? await myQueuesResponse.json() : [])
+
+      const notificationsResponse = await fetch(`/api/notifications/${encodeURIComponent(user.email)}`)
+      setNotifications(notificationsResponse.ok ? await notificationsResponse.json() : [])
 
       setLoading(false)
     }
