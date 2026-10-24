@@ -237,6 +237,7 @@ def serve_next_route(service_id: int, action: AdminQueueAction):
         raise HTTPException(status_code=404, detail="Queue is empty")
 
     history.add_history_entry(entry["email"], service_id, service["name"], "Served")
+    notify_close_users(service_id)
     return entry
 
 
