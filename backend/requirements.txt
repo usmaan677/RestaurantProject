@@ -4,3 +4,4 @@ pydantic[email]
 pytest
 pytest-cov
 httpx
+PyMySQL
