@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from fake_database import use_fake_history, use_fake_notifications
+from fake_database import use_fake_history, use_fake_notifications, use_fake_queue_entries
 from main import app
 import queues
 import services
@@ -22,11 +22,10 @@ def open_queue_for_service_tests(monkeypatch):
     monkeypatch.setattr(queues.auth, "is_admin", lambda email: email == "admin@queuesmart.com")
     use_fake_notifications(monkeypatch)
     use_fake_history(monkeypatch)
+    return use_fake_queue_entries(monkeypatch)
 
 
 def setup_function():
-    queues.queue_entries.clear()
-    queues.next_entry_id = 1
     services.services.clear()
     services.next_service_id = 1
 
@@ -95,7 +94,7 @@ def test_join_queue_service_not_found():
     assert response.json()["detail"] == "Service not found"
 
 
-def test_join_queue_rejected_when_service_queue_is_closed(monkeypatch):
+def test_join_queue_rejected_when_service_queue_is_closed(monkeypatch, open_queue_for_service_tests):
     service_id = create_test_service()
     monkeypatch.setattr(queues, "get_active_queue", lambda _: None)
 
@@ -107,7 +106,7 @@ def test_join_queue_rejected_when_service_queue_is_closed(monkeypatch):
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Queue is not open for this service"
-    assert queues.queue_entries == []
+    assert open_queue_for_service_tests == []
     assert client.get("/api/history?email=alice@gmail.com").json() == []
 
 

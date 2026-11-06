@@ -3,6 +3,48 @@ from contextlib import contextmanager
 import database
 import history
 import notifications
+import queues
+
+
+# ---------- Fake queue entries (a plain list instead of MySQL) ----------
+
+def use_fake_queue_entries(monkeypatch):
+    fake_entries = []  # only people still waiting, like the real table query
+    ids_used = []
+
+    def get_queue_for_service(service_id):
+        entries = [entry for entry in fake_entries if entry["service_id"] == service_id]
+        return sorted(entries, key=lambda entry: (-entry["priority"], entry["id"]))
+
+    def get_entries_for_email(email):
+        return [entry for entry in fake_entries if entry["email"] == email.lower()]
+
+    def add_queue_entry(service_id, email, priority):
+        ids_used.append(None)
+        entry = {
+            "id": len(ids_used),  # ids keep counting up even after people leave
+            "service_id": service_id,
+            "email": email.lower(),
+            "priority": priority,
+        }
+        fake_entries.append(entry)
+        return entry
+
+    def finish_queue_entry(service_id, new_status, email=None):
+        waiting = get_queue_for_service(service_id)
+        if email is not None:
+            waiting = [entry for entry in waiting if entry["email"] == email.lower()]
+        if not waiting:
+            return None
+
+        fake_entries.remove(waiting[0])
+        return waiting[0]
+
+    monkeypatch.setattr(queues, "get_queue_for_service", get_queue_for_service)
+    monkeypatch.setattr(queues, "get_entries_for_email", get_entries_for_email)
+    monkeypatch.setattr(queues, "add_queue_entry", add_queue_entry)
+    monkeypatch.setattr(queues, "finish_queue_entry", finish_queue_entry)
+    return fake_entries
 
 
 # ---------- Fake notifications (a plain list instead of MySQL) ----------

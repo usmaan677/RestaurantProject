@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from fake_database import use_fake_history, use_fake_notifications
+from fake_database import use_fake_history, use_fake_notifications, use_fake_queue_entries
 from main import app
 import notifications
 import queues
@@ -22,11 +22,10 @@ def open_queue_for_notification_tests(monkeypatch):
     )
     use_fake_notifications(monkeypatch)
     use_fake_history(monkeypatch)
+    use_fake_queue_entries(monkeypatch)
 
 
 def setup_function():
-    queues.queue_entries.clear()
-    queues.next_entry_id = 1
     services.services.clear()
     services.next_service_id = 1
 

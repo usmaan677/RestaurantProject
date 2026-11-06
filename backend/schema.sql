@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS queue_entries (
     queue_id BIGINT UNSIGNED NOT NULL,
     user_id BIGINT UNSIGNED NOT NULL,
     position INT UNSIGNED NOT NULL,
+    priority TINYINT UNSIGNED NOT NULL DEFAULT 1,
     joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(10) NOT NULL DEFAULT 'waiting',
     waiting_user_id BIGINT UNSIGNED
@@ -105,6 +106,8 @@ CREATE TABLE IF NOT EXISTS queue_entries (
         FOREIGN KEY (user_id) REFERENCES user_credentials (id),
     CONSTRAINT chk_queue_entries_position
         CHECK (position > 0),
+    CONSTRAINT chk_queue_entries_priority
+        CHECK (priority BETWEEN 1 AND 5),
     CONSTRAINT chk_queue_entries_status
         CHECK (status IN ('waiting', 'served', 'canceled')),
     INDEX idx_queue_entries_queue_status (queue_id, status)
