@@ -1,6 +1,17 @@
--- This file covers the Queue table only.
--- The services table must be created first by the teammate implementing Service.
--- Coordinate its id type with that schema; this foreign key expects BIGINT UNSIGNED.
+-- Services must be created before queues because queues.service_id references it.
+CREATE TABLE IF NOT EXISTS services (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(500) NOT NULL,
+    expected_duration INT UNSIGNED NOT NULL,
+    priority TINYINT UNSIGNED NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT chk_services_expected_duration
+        CHECK (expected_duration > 0),
+    CONSTRAINT chk_services_priority
+        CHECK (priority BETWEEN 1 AND 5)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS queues (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     service_id BIGINT UNSIGNED NOT NULL,

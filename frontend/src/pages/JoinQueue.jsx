@@ -57,7 +57,7 @@ function JoinQueue() {
 
       const result = await response.json()
 
-      if (!response.ok && response.status !== 400) {
+      if (!response.ok) {
         throw new Error(result.detail || 'Could not join the queue.')
       }
 

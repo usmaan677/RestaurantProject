@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from main import app
 import history
@@ -6,6 +7,19 @@ import services
 import notifications
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def open_queue_for_service_tests(monkeypatch):
+    monkeypatch.setattr(
+        queues,
+        "get_active_queue",
+        lambda service_id: {
+            "id": 1,
+            "service_id": service_id,
+            "status": "open",
+        },
+    )
 
 
 def setup_function():
@@ -81,6 +95,22 @@ def test_join_queue_service_not_found():
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Service not found"
+
+
+def test_join_queue_rejected_when_service_queue_is_closed(monkeypatch):
+    service_id = create_test_service()
+    monkeypatch.setattr(queues, "get_active_queue", lambda _: None)
+
+    response = client.post("/api/queues/join", json={
+        "email": "alice@gmail.com",
+        "service_id": service_id,
+        "priority": 3,
+    })
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Queue is not open for this service"
+    assert queues.queue_entries == []
+    assert history.history_entries == []
 
 
 def test_join_queue_duplicate_user():

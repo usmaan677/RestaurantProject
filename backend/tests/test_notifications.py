@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from main import app
 import notifications
@@ -5,6 +6,19 @@ import queues
 import services
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def open_queue_for_notification_tests(monkeypatch):
+    monkeypatch.setattr(
+        queues,
+        "get_active_queue",
+        lambda service_id: {
+            "id": 1,
+            "service_id": service_id,
+            "status": "open",
+        },
+    )
 
 
 def setup_function():

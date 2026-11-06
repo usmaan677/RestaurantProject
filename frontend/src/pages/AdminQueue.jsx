@@ -1,13 +1,36 @@
 import { useEffect, useState } from "react";
 
+async function getActiveQueue(serviceId) {
+  const response = await fetch(
+    `/api/queues/services/${encodeURIComponent(serviceId)}/active`,
+  );
+  const data = await response.json();
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      Array.isArray(data.detail)
+        ? data.detail.map((item) => item.msg).join(", ")
+        : data.detail || "Could not load queue status.",
+    );
+  }
+
+  return data;
+}
+
 function AdminQueue() {
   const adminEmail = JSON.parse(localStorage.getItem("user") || "null")?.email;
   const [services, setServices] = useState([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [queue, setQueue] = useState([]);
+  const [activeQueue, setActiveQueue] = useState(null);
   const [loadingServices, setLoadingServices] = useState(true);
   const [loadingQueue, setLoadingQueue] = useState(false);
   const [serving, setServing] = useState(false);
+  const [managingQueueRecord, setManagingQueueRecord] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -43,6 +66,30 @@ function AdminQueue() {
       isActive = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedServiceId) return;
+
+    let isActive = true;
+
+    async function loadActiveQueue() {
+      try {
+        const record = await getActiveQueue(selectedServiceId);
+        if (isActive) {
+          setActiveQueue(record);
+        }
+      } catch (err) {
+        if (isActive) {
+          setError(err.message || "Could not load queue status.");
+        }
+      }
+    }
+
+    loadActiveQueue();
+    return () => {
+      isActive = false;
+    };
+  }, [selectedServiceId]);
 
   useEffect(() => {
     if (!selectedServiceId || !adminEmail) return;
@@ -85,6 +132,85 @@ function AdminQueue() {
       isActive = false;
     };
   }, [selectedServiceId, adminEmail]);
+
+  async function refreshActiveQueue() {
+    if (!selectedServiceId) return;
+
+    try {
+      setError("");
+      setActiveQueue(await getActiveQueue(selectedServiceId));
+    } catch (err) {
+      setError(err.message || "Could not load queue status.");
+    }
+  }
+
+  async function openQueueRecord() {
+    if (!selectedServiceId) return;
+
+    setManagingQueueRecord(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch(
+        `/api/queues/services/${encodeURIComponent(selectedServiceId)}`,
+        { method: "POST" },
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          Array.isArray(data.detail)
+            ? data.detail.map((item) => item.msg).join(", ")
+            : data.detail === "Service not found"
+              ? "This service was not found in the database. Make sure its database ID matches the selected service."
+              : data.detail || "Could not open the queue.",
+        );
+      }
+
+      setActiveQueue(data);
+      setNotice("The service queue is open.");
+    } catch (err) {
+      setError(err.message || "Could not open the queue.");
+    } finally {
+      setManagingQueueRecord(false);
+    }
+  }
+
+  async function closeQueueRecord() {
+    if (!activeQueue || !adminEmail) return;
+
+    setManagingQueueRecord(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const response = await fetch(
+        `/api/queues/${activeQueue.id}/close`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: adminEmail }),
+        },
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          Array.isArray(data.detail)
+            ? data.detail.map((item) => item.msg).join(", ")
+            : data.detail || "Could not close the queue.",
+        );
+      }
+
+      setActiveQueue(null);
+      setNotice(`Queue ${data.id} has been closed.`);
+    } catch (err) {
+      setError(err.message || "Could not close the queue.");
+    } finally {
+      setManagingQueueRecord(false);
+    }
+  }
 
   async function serveNext() {
     if (!selectedServiceId || !adminEmail || queue.length === 0) return;
@@ -165,6 +291,7 @@ function AdminQueue() {
               value={selectedServiceId}
               onChange={(event) => {
                 setSelectedServiceId(event.target.value);
+                setActiveQueue(null);
                 setNotice("");
                 setError("");
               }}
@@ -176,6 +303,60 @@ function AdminQueue() {
                 </option>
               ))}
             </select>
+
+            <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    Service queue record
+                  </h2>
+                  {activeQueue?.service_id === Number(selectedServiceId) ? (
+                    <p className="mt-1 text-sm text-slate-600">
+                      Queue #{activeQueue.id} is open
+                      {activeQueue.created_at &&
+                        ` · created ${new Date(activeQueue.created_at).toLocaleString()}`}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm text-slate-600">
+                      No active queue record for this service.
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={refreshActiveQueue}
+                    disabled={managingQueueRecord}
+                    className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400"
+                  >
+                    Refresh status
+                  </button>
+                  {activeQueue?.service_id === Number(selectedServiceId) ? (
+                    <button
+                      type="button"
+                      onClick={closeQueueRecord}
+                      disabled={managingQueueRecord}
+                      className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {managingQueueRecord ? "Closing..." : "Close queue"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openQueueRecord}
+                      disabled={managingQueueRecord}
+                      className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {managingQueueRecord ? "Opening..." : "Open queue"}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                Opening or closing this record does not change the waiting entries below.
+                The service must exist in the Queue database.
+              </p>
+            </section>
 
             <section className="mt-6 rounded-lg border border-slate-200 bg-white p-4">
               <div className="flex items-center justify-between gap-4">
