@@ -6,22 +6,10 @@ function QueueStatus() {
 
   const [services, setServices] = useState([])
   const [myQueues, setMyQueues] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(Boolean(user))
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    if (!user) {
-      setLoading(false)
-      return
-    }
-
-    loadStatus()
-  }, [])
-
   async function loadStatus() {
-    setLoading(true)
-    setError('')
-
     const servicesResponse = await fetch('/api/services/')
     setServices(servicesResponse.ok ? await servicesResponse.json() : [])
 
@@ -30,6 +18,13 @@ function QueueStatus() {
 
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadStatus()
+    }
+  }, [])
 
   async function handleLeave(serviceId) {
     try {

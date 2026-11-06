@@ -46,6 +46,7 @@ def test_get_history_formats_rows(monkeypatch):
         "service_id": 2,
         "service_name": "Takeout",
         "date": "2026-11-06",
+        "time": "02:30 PM",
         "outcome": "Served",
     }]
     assert connection.queries[0][1] == ("a@test.com",)

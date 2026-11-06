@@ -58,6 +58,7 @@ def get_history_for_email(email: str):
             "service_id": row["service_id"],
             "service_name": row["service_name"],
             "date": row["created_at"].date().isoformat(),
+            "time": row["created_at"].strftime("%I:%M %p"),
             "outcome": row["outcome"],
         }
         for row in rows

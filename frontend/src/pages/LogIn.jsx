@@ -18,6 +18,10 @@ function LogIn() {
         body: JSON.stringify({ email, password }),
       })
 
+      if (response.status === 500) {
+        throw new Error('Something went wrong on the server. Is the database running?')
+      }
+
       const result = await response.json()
 
       if (!response.ok) {

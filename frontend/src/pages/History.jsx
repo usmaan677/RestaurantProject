@@ -5,11 +5,10 @@ function History() {
   const user = JSON.parse(localStorage.getItem('user'))
 
   const [history, setHistory] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(Boolean(user))
 
   useEffect(() => {
     if (!user) {
-      setLoading(false)
       return
     }
 
@@ -50,7 +49,7 @@ function History() {
       <table className="mt-6 w-full border-collapse rounded border border-slate-200 bg-white">
         <thead>
           <tr className="border-b border-slate-200 text-left">
-            <th className="px-4 py-2 text-slate-700">Date</th>
+            <th className="px-4 py-2 text-slate-700">Date &amp; Time</th>
             <th className="px-4 py-2 text-slate-700">Service</th>
             <th className="px-4 py-2 text-slate-700">Outcome</th>
           </tr>
@@ -63,7 +62,7 @@ function History() {
           )}
           {history.map((item) => (
             <tr key={item.id} className="border-b border-slate-100 last:border-0">
-              <td className="px-4 py-2 text-slate-600">{item.date}</td>
+              <td className="px-4 py-2 text-slate-600">{item.date} {item.time}</td>
               <td className="px-4 py-2 text-slate-600">{item.service_name}</td>
               <td className="px-4 py-2 text-slate-600">{item.outcome}</td>
             </tr>

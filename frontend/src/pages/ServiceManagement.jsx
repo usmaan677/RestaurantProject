@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 function ServiceManagement() {
+  const user = JSON.parse(localStorage.getItem('user'))
   const [showForm, setShowForm] = useState(false)
   const [serviceName, setServiceName] = useState('')
   const [description, setDescription] = useState('')
@@ -71,13 +72,13 @@ function ServiceManagement() {
       let response
 
       if (editingService) {
-        response = await fetch(`/api/services/${editingService.id}`, {
+        response = await fetch(`/api/services/${editingService.id}?email=${encodeURIComponent(user?.email)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json'},
           body: JSON.stringify(serviceData),
       })
       } else {
-        response = await fetch('/api/services/', {
+        response = await fetch(`/api/services/?email=${encodeURIComponent(user?.email)}`, {
           method: "POST",
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(serviceData)

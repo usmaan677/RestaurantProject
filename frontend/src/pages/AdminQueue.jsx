@@ -154,7 +154,11 @@ function AdminQueue() {
     try {
       const response = await fetch(
         `/api/queues/services/${encodeURIComponent(selectedServiceId)}`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: adminEmail }),
+        },
       );
       const data = await response.json();
 
@@ -204,6 +208,7 @@ function AdminQueue() {
       }
 
       setActiveQueue(null);
+      setQueue([]);
       setNotice(`Queue ${data.id} has been closed.`);
     } catch (err) {
       setError(err.message || "Could not close the queue.");
@@ -353,8 +358,7 @@ function AdminQueue() {
                 </div>
               </div>
               <p className="mt-3 text-xs text-slate-500">
-                Opening or closing this record does not change the waiting entries below.
-                The service must exist in the Queue database.
+                Closing the queue cancels everyone still waiting in it.
               </p>
             </section>
 

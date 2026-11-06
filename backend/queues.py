@@ -334,6 +334,10 @@ def close_queue_record(queue_id: int):
                     (queue_id,),
                 )
                 cursor.execute(
+                    "UPDATE queue_entries SET status = 'canceled' WHERE queue_id = %s AND status = 'waiting'",
+                    (queue_id,),
+                )
+                cursor.execute(
                     """
                     SELECT id, service_id, status, created_at
                     FROM queues
@@ -350,7 +354,10 @@ def close_queue_record(queue_id: int):
 # ---------- 4. ROUTES (the URLs the frontend calls) ----------
 
 @router.post("/services/{service_id}")
-def create_queue_route(service_id: int = Path(gt=0)):
+def create_queue_route(action: AdminQueueAction, service_id: int = Path(gt=0)):
+    if not auth.is_admin(str(action.email)):
+        raise HTTPException(status_code=403, detail="Administrator access required")
+
     queue = create_queue_record(service_id)
     if queue is None:
         raise HTTPException(status_code=404, detail="Service not found")

@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS services (
         CHECK (priority BETWEEN 1 AND 5)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+-- Starting services.
+INSERT IGNORE INTO services (id, name, description, expected_duration, priority) VALUES
+    (1, 'Dine In', 'Sit down and enjoy your meal at the restaurant.', 20, 3),
+    (2, 'Take Out', 'Pick up your order at the front counter.', 10, 3),
+    (3, 'DoorDash', 'Have your order delivered to your door.', 35, 3);
+
 CREATE TABLE IF NOT EXISTS queues (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     service_id BIGINT UNSIGNED NOT NULL,

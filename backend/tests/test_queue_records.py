@@ -67,6 +67,8 @@ class FakeCursor:
                     queue["status"] = "closed"
                     break
             self.result = None
+        elif normalized_query.startswith("UPDATE queue_entries"):
+            self.result = None
         else:
             raise AssertionError(f"Unexpected SQL: {normalized_query}")
 
@@ -100,8 +102,8 @@ def install_fake_database(monkeypatch):
 def test_create_active_queue_returns_existing_queue(monkeypatch):
     connection = install_fake_database(monkeypatch)
 
-    first_response = client.post("/api/queues/services/10")
-    second_response = client.post("/api/queues/services/10")
+    first_response = client.post("/api/queues/services/10", json={"email": "admin@example.com"})
+    second_response = client.post("/api/queues/services/10", json={"email": "admin@example.com"})
 
     assert first_response.status_code == 200
     assert first_response.json()["status"] == "open"
@@ -113,7 +115,7 @@ def test_create_active_queue_returns_existing_queue(monkeypatch):
 def test_create_queue_requires_existing_service(monkeypatch):
     install_fake_database(monkeypatch)
 
-    response = client.post("/api/queues/services/99")
+    response = client.post("/api/queues/services/99", json={"email": "admin@example.com"})
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Service not found"
@@ -121,7 +123,7 @@ def test_create_queue_requires_existing_service(monkeypatch):
 
 def test_retrieve_and_close_active_queue(monkeypatch):
     install_fake_database(monkeypatch)
-    created = client.post("/api/queues/services/10").json()
+    created = client.post("/api/queues/services/10", json={"email": "admin@example.com"}).json()
 
     active_response = client.get("/api/queues/services/10/active")
     closed_response = client.post(
@@ -139,7 +141,7 @@ def test_retrieve_and_close_active_queue(monkeypatch):
 
 def test_close_queue_is_idempotent_and_missing_queue_is_not_found(monkeypatch):
     install_fake_database(monkeypatch)
-    created = client.post("/api/queues/services/10").json()
+    created = client.post("/api/queues/services/10", json={"email": "admin@example.com"}).json()
 
     first_close = client.post(
         f"/api/queues/{created['id']}/close",
@@ -169,3 +171,27 @@ def test_close_queue_requires_admin(monkeypatch):
     )
 
     assert response.status_code == 403
+
+
+def test_open_queue_requires_admin(monkeypatch):
+    install_fake_database(monkeypatch)
+    monkeypatch.setattr(queues.auth, "is_admin", lambda email: False)
+
+    response = client.post(
+        "/api/queues/services/10",
+        json={"email": "user@example.com"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_closing_queue_cancels_waiting_entries(monkeypatch):
+    connection = install_fake_database(monkeypatch)
+    created = client.post("/api/queues/services/10", json={"email": "admin@example.com"}).json()
+
+    client.post(f"/api/queues/{created['id']}/close", json={"email": "admin@example.com"})
+
+    assert (
+        "UPDATE queue_entries SET status = 'canceled' WHERE queue_id = %s AND status = 'waiting'",
+        (created["id"],),
+    ) in connection.queries
