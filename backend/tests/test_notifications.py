@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from fake_database import use_fake_history, use_fake_notifications
 from main import app
 import notifications
 import queues
@@ -19,11 +20,11 @@ def open_queue_for_notification_tests(monkeypatch):
             "status": "open",
         },
     )
+    use_fake_notifications(monkeypatch)
+    use_fake_history(monkeypatch)
 
 
 def setup_function():
-    notifications.notifications.clear()
-    notifications.next_notification_id = 1
     queues.queue_entries.clear()
     queues.next_entry_id = 1
     services.services.clear()
@@ -99,3 +100,44 @@ def test_add_and_get_notification_logic():
 
     assert len(notifications.get_notifications("a@test.com")) == 1
     assert notifications.get_notifications("b@test.com") == []
+
+
+def test_rejoining_sends_close_notification_again():
+    service_id = create_test_service()
+    join("a@test.com", service_id)
+    client.post("/api/queues/leave", json={"email": "a@test.com", "service_id": service_id})
+    join("a@test.com", service_id)
+
+    assert get_messages("a@test.com").count("You're almost up for Takeout!") == 2
+
+
+def test_joining_other_service_does_not_repeat_close_notification():
+    takeout_id = create_test_service()
+    dine_in_id = client.post("/api/services/", json={
+        "name": "Dine In", "description": "Table", "priority": 3, "expected_duration": 10
+    }).json()["id"]
+
+    join("a@test.com", takeout_id)
+    join("a@test.com", dine_in_id)
+    join("b@test.com", takeout_id)
+
+    assert get_messages("a@test.com").count("You're almost up for Takeout!") == 1
+
+
+def test_new_notifications_have_status_sent():
+    notifications.add_notification("a@test.com", "hello")
+
+    response = client.get("/api/notifications/a@test.com")
+
+    assert response.json()[0]["status"] == "sent"
+
+
+def test_mark_viewed_only_changes_that_user():
+    notifications.add_notification("a@test.com", "hello")
+    notifications.add_notification("b@test.com", "hello")
+
+    response = client.post("/api/notifications/A@Test.com/viewed")
+
+    assert response.status_code == 200
+    assert response.json()[0]["status"] == "viewed"
+    assert client.get("/api/notifications/b@test.com").json()[0]["status"] == "sent"

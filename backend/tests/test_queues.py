@@ -1,10 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
+from fake_database import use_fake_history, use_fake_notifications
 from main import app
-import history
 import queues
 import services
-import notifications
 
 client = TestClient(app)
 
@@ -21,6 +20,8 @@ def open_queue_for_service_tests(monkeypatch):
         },
     )
     monkeypatch.setattr(queues.auth, "is_admin", lambda email: email == "admin@queuesmart.com")
+    use_fake_notifications(monkeypatch)
+    use_fake_history(monkeypatch)
 
 
 def setup_function():
@@ -28,10 +29,6 @@ def setup_function():
     queues.next_entry_id = 1
     services.services.clear()
     services.next_service_id = 1
-    history.history_entries.clear()
-    history.next_history_id = 1
-    notifications.notifications.clear()
-    notifications.next_notification_id = 1
 
 
 def create_test_service(expected_duration=15, priority=3):
@@ -111,7 +108,7 @@ def test_join_queue_rejected_when_service_queue_is_closed(monkeypatch):
     assert response.status_code == 409
     assert response.json()["detail"] == "Queue is not open for this service"
     assert queues.queue_entries == []
-    assert history.history_entries == []
+    assert client.get("/api/history?email=alice@gmail.com").json() == []
 
 
 def test_join_queue_duplicate_user():

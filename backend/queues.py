@@ -136,8 +136,9 @@ def notify_close_users(service_id: int):
 
     for entry in ordered[:CLOSE_POSITION]:
         message = f"You're almost up for {service['name']}!"
+        joined_message = f"You joined the {service['name']} queue"
 
-        if not notifications.has_notification(entry["email"], message):
+        if not notifications.has_notification(entry["email"], message, joined_message):
             notifications.add_notification(entry["email"], message)
 
 

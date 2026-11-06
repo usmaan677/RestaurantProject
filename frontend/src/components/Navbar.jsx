@@ -19,6 +19,10 @@ function Navbar() {
     async function loadNotifications() {
       if (!user) return
 
+      if (openMenu === 'bell') {
+        await fetch(`/api/notifications/${encodeURIComponent(user.email)}/viewed`, { method: 'POST' })
+      }
+
       const response = await fetch(`/api/notifications/${encodeURIComponent(user.email)}`)
       if (response.ok) {
         const data = await response.json()
@@ -123,9 +127,9 @@ function Navbar() {
         <div className="relative">
           <button onClick={() => toggleMenu('bell')} className="relative flex items-center text-slate-600 hover:text-slate-900">
             <FaRegBell size={20} />
-            {/* Small red circle showing how many notifications there are */}
+            {/* Small red circle showing how many notifications are new */}
             <span className="absolute -top-1 -right-2 rounded-full bg-red-500 px-1.5 text-xs text-white">
-              {notifications.length}
+              {notifications.filter((note) => note.status === 'sent').length}
             </span>
           </button>
 

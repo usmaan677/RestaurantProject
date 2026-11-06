@@ -1,13 +1,15 @@
+import pytest
 from fastapi.testclient import TestClient
+from fake_database import use_fake_history
 from main import app
 import history
 
 client = TestClient(app)
 
 
-def setup_function():
-    history.history_entries.clear()
-    history.next_history_id = 1
+@pytest.fixture(autouse=True)
+def use_fake_database(monkeypatch):
+    use_fake_history(monkeypatch)
 
 
 def test_get_history_empty():
