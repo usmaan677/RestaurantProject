@@ -1,3 +1,4 @@
+import pymysql
 from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel, EmailStr, Field
 import notifications
@@ -24,19 +25,149 @@ class AdminQueueAction(BaseModel):
     email: EmailStr
 
 
-# ---------- 2. DATA (fake database for now) ----------
+# ---------- 2. DATA (MySQL database) ----------
 
-queue_entries = []
-next_entry_id = 1
+# Waiting people are served by priority (5 first), then by who joined first (smaller id).
+SELECT_QUEUE_ENTRIES = """
+    SELECT queue_entries.id, queues.service_id, user_credentials.email,
+           queue_entries.priority
+    FROM queue_entries
+    JOIN queues ON queues.id = queue_entries.queue_id
+    JOIN user_credentials ON user_credentials.id = queue_entries.user_id
+"""
+SERVING_ORDER = "ORDER BY queue_entries.priority DESC, queue_entries.id"
+
+
+def get_queue_for_service(service_id: int):
+    with database.connection_scope() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                SELECT_QUEUE_ENTRIES
+                + "WHERE queues.service_id = %s AND queue_entries.status = 'waiting' "
+                + SERVING_ORDER,
+                (service_id,),
+            )
+            return list(cursor.fetchall())
+
+
+def get_entries_for_email(email: str):
+    with database.connection_scope() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                SELECT_QUEUE_ENTRIES
+                + "WHERE user_credentials.email = %s AND queue_entries.status = 'waiting' "
+                + "ORDER BY queue_entries.id",
+                (email.lower(),),
+            )
+            return list(cursor.fetchall())
+
+
+def lock_service_queues(cursor, service_id: int):
+    # Locking the service's queues makes joins, leaves and serves happen one at a time
+    cursor.execute(
+        "SELECT id, status FROM queues WHERE service_id = %s ORDER BY id DESC FOR UPDATE",
+        (service_id,),
+    )
+    return cursor.fetchall()
+
+
+def renumber_waiting_entries(cursor, service_id: int):
+    # Keeps the saved position column in step with the serving order
+    cursor.execute(
+        """
+        UPDATE queue_entries
+        JOIN (
+            SELECT queue_entries.id AS entry_id,
+                   ROW_NUMBER() OVER (
+                       ORDER BY queue_entries.priority DESC, queue_entries.id
+                   ) AS new_position
+            FROM queue_entries
+            JOIN queues ON queues.id = queue_entries.queue_id
+            WHERE queues.service_id = %s AND queue_entries.status = 'waiting'
+        ) AS ranked ON ranked.entry_id = queue_entries.id
+        SET queue_entries.position = ranked.new_position
+        """,
+        (service_id,),
+    )
+
+
+def add_queue_entry(service_id: int, email: str, priority: int):
+    email = email.lower()
+    user = auth.get_user_by_email(email)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        with database.connection_scope() as connection:
+            with connection.cursor() as cursor:
+                open_queue = next(
+                    (queue for queue in lock_service_queues(cursor, service_id)
+                     if queue["status"] == "open"),
+                    None,
+                )
+                if open_queue is None:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Queue is not open for this service",
+                    )
+
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) AS waiting
+                    FROM queue_entries
+                    JOIN queues ON queues.id = queue_entries.queue_id
+                    WHERE queues.service_id = %s AND queue_entries.status = 'waiting'
+                    """,
+                    (service_id,),
+                )
+                position = cursor.fetchone()["waiting"] + 1
+
+                cursor.execute(
+                    """
+                    INSERT INTO queue_entries (queue_id, user_id, position, priority)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (open_queue["id"], user["id"], position, priority),
+                )
+                entry_id = cursor.lastrowid
+                renumber_waiting_entries(cursor, service_id)
+    except pymysql.err.IntegrityError as exc:
+        # 1062 = the database refused a second waiting row for the same user and queue
+        if exc.args[0] == 1062:
+            raise HTTPException(status_code=400, detail="User already in queue for this service")
+        raise
+
+    return {"id": entry_id, "service_id": service_id, "email": email, "priority": priority}
+
+
+def finish_queue_entry(service_id: int, new_status: str, email: str | None = None):
+    # Marks one waiting person as 'served' or 'canceled'. With no email it takes the
+    # first person in line. The row stays in the table so there is a record of it.
+    with database.connection_scope() as connection:
+        with connection.cursor() as cursor:
+            lock_service_queues(cursor, service_id)
+
+            query = SELECT_QUEUE_ENTRIES + "WHERE queues.service_id = %s AND queue_entries.status = 'waiting' "
+            params = [service_id]
+            if email is not None:
+                query += "AND user_credentials.email = %s "
+                params.append(email.lower())
+            cursor.execute(query + SERVING_ORDER + " LIMIT 1", tuple(params))
+
+            entry = cursor.fetchone()
+            if entry is None:
+                return None
+
+            cursor.execute(
+                "UPDATE queue_entries SET status = %s WHERE id = %s",
+                (new_status, entry["id"]),
+            )
+            renumber_waiting_entries(cursor, service_id)
+            return entry
 
 
 # ---------- 3. LOGIC (the rules) ----------
-
-def get_queue_for_service(service_id: int):
-    entries = [e for e in queue_entries if e["service_id"] == service_id]
-    # higher priority first, then earlier arrival (smaller id) first
-    return sorted(entries, key=lambda e: (-e["priority"], e["id"]))
-
 
 def get_position(service_id: int, email: str):
     email = email.lower()
@@ -56,21 +187,14 @@ def calculate_wait(service_id: int, position: int):
 
 
 def is_user_in_queue(service_id: int, email: str) -> bool:
-    email = email.lower()
-
-    for entry in queue_entries:
-        if entry["service_id"] == service_id and entry["email"] == email:
-            return True
-
-    return False
+    return get_position(service_id, email) is not None
 
 
 def build_status(service_id: int, email: str):
     email = email.lower()
-    position = get_position(service_id, email)
 
-    for entry in queue_entries:
-        if entry["service_id"] == service_id and entry["email"] == email:
+    for position, entry in enumerate(get_queue_for_service(service_id), start=1):
+        if entry["email"] == email:
             return {
                 "id": entry["id"],
                 "service_id": entry["service_id"],
@@ -84,17 +208,7 @@ def build_status(service_id: int, email: str):
 
 
 def join_queue(join_data: QueueJoin):
-    global next_entry_id
-
-    entry = {
-        "id": next_entry_id,
-        "service_id": join_data.service_id,
-        "email": join_data.email.lower(),
-        "priority": join_data.priority,
-    }
-
-    queue_entries.append(entry)
-    next_entry_id += 1
+    add_queue_entry(join_data.service_id, join_data.email, join_data.priority)
 
     status = build_status(join_data.service_id, join_data.email)
     service = services.get_service(join_data.service_id)
@@ -109,25 +223,18 @@ def join_queue(join_data: QueueJoin):
 
 
 def leave_queue(leave_data: QueueLeave):
-    for entry in queue_entries:
-        if entry["service_id"] == leave_data.service_id and entry["email"] == leave_data.email.lower():
-            queue_entries.remove(entry)
-            notify_close_users(leave_data.service_id)  # everyone behind moved up
-            return entry
+    entry = finish_queue_entry(leave_data.service_id, "canceled", leave_data.email)
 
-    return None
+    if entry is not None:
+        notify_close_users(leave_data.service_id)  # everyone behind moved up
 
-
-
-def get_entries_for_email(email: str):
-    email = email.lower()
-    return [e for e in queue_entries if e["email"] == email]
+    return entry
 
 
 def get_queue_count(service_id: int):
     return len(get_queue_for_service(service_id))
 
-CLOSE_POSITION = 2  
+CLOSE_POSITION = 2
 
 
 def notify_close_users(service_id: int):
@@ -143,14 +250,7 @@ def notify_close_users(service_id: int):
 
 
 def serve_next(service_id: int):
-    ordered = get_queue_for_service(service_id)
-
-    if not ordered:
-        return None
-
-    entry = ordered[0]
-    queue_entries.remove(entry)
-    return entry
+    return finish_queue_entry(service_id, "served")
 
 
 def create_queue_record(service_id: int):
