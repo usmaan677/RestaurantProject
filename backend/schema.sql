@@ -81,3 +81,31 @@ CREATE TABLE IF NOT EXISTS queue_history (
     CONSTRAINT fk_queue_history_service
         FOREIGN KEY (service_id) REFERENCES services (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- Each row is one user waiting in one queue.
+-- user_credentials and queues must be created before this table because of the foreign keys.
+-- waiting_user_id is filled in by MySQL: it equals user_id while the status is 'waiting' and
+-- is NULL otherwise. The unique rule on it means a user can only be waiting once per queue,
+-- but can still have many old 'served' or 'canceled' rows and rejoin later.
+CREATE TABLE IF NOT EXISTS queue_entries (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    queue_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    position INT UNSIGNED NOT NULL,
+    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(10) NOT NULL DEFAULT 'waiting',
+    waiting_user_id BIGINT UNSIGNED
+        GENERATED ALWAYS AS (IF(status = 'waiting', user_id, NULL)) STORED,
+    PRIMARY KEY (id),
+    CONSTRAINT uq_queue_entries_queue_waiting_user
+        UNIQUE (queue_id, waiting_user_id),
+    CONSTRAINT fk_queue_entries_queue
+        FOREIGN KEY (queue_id) REFERENCES queues (id),
+    CONSTRAINT fk_queue_entries_user
+        FOREIGN KEY (user_id) REFERENCES user_credentials (id),
+    CONSTRAINT chk_queue_entries_position
+        CHECK (position > 0),
+    CONSTRAINT chk_queue_entries_status
+        CHECK (status IN ('waiting', 'served', 'canceled')),
+    INDEX idx_queue_entries_queue_status (queue_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
