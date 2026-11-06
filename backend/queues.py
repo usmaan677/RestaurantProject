@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel, EmailStr, Field
 import notifications
 
 import auth
+import database
 import history
 import services
 
@@ -151,7 +152,128 @@ def serve_next(service_id: int):
     return entry
 
 
+def create_queue_record(service_id: int):
+    with database.connection_scope() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id FROM services WHERE id = %s FOR UPDATE",
+                (service_id,),
+            )
+            if cursor.fetchone() is None:
+                return None
+
+            cursor.execute(
+                """
+                SELECT id, service_id, status, created_at
+                FROM queues
+                WHERE service_id = %s AND status = 'open'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (service_id,),
+            )
+            queue = cursor.fetchone()
+            if queue is not None:
+                return queue
+
+            cursor.execute(
+                "INSERT INTO queues (service_id) VALUES (%s)",
+                (service_id,),
+            )
+            queue_id = cursor.lastrowid
+            cursor.execute(
+                """
+                SELECT id, service_id, status, created_at
+                FROM queues
+                WHERE id = %s
+                """,
+                (queue_id,),
+            )
+            queue = cursor.fetchone()
+            if queue is None:
+                raise RuntimeError("Created queue could not be retrieved")
+            return queue
+
+
+def get_active_queue(service_id: int):
+    with database.connection_scope() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, service_id, status, created_at
+                FROM queues
+                WHERE service_id = %s AND status = 'open'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (service_id,),
+            )
+            return cursor.fetchone()
+
+
+def close_queue_record(queue_id: int):
+    with database.connection_scope() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, service_id, status, created_at
+                FROM queues
+                WHERE id = %s
+                FOR UPDATE
+                """,
+                (queue_id,),
+            )
+            queue = cursor.fetchone()
+            if queue is None:
+                return None
+
+            if queue["status"] == "open":
+                cursor.execute(
+                    "UPDATE queues SET status = 'closed' WHERE id = %s",
+                    (queue_id,),
+                )
+                cursor.execute(
+                    """
+                    SELECT id, service_id, status, created_at
+                    FROM queues
+                    WHERE id = %s
+                    """,
+                    (queue_id,),
+                )
+                queue = cursor.fetchone()
+                if queue is None:
+                    raise RuntimeError("Closed queue could not be retrieved")
+            return queue
+
+
 # ---------- 4. ROUTES (the URLs the frontend calls) ----------
+
+@router.post("/services/{service_id}")
+def create_queue_route(service_id: int = Path(gt=0)):
+    queue = create_queue_record(service_id)
+    if queue is None:
+        raise HTTPException(status_code=404, detail="Service not found")
+    return queue
+
+
+@router.get("/services/{service_id}/active")
+def get_active_queue_route(service_id: int = Path(gt=0)):
+    queue = get_active_queue(service_id)
+    if queue is None:
+        raise HTTPException(status_code=404, detail="No active queue for service")
+    return queue
+
+
+@router.post("/{queue_id}/close")
+def close_queue_route(action: AdminQueueAction, queue_id: int = Path(gt=0)):
+    if not auth.is_admin(str(action.email)):
+        raise HTTPException(status_code=403, detail="Administrator access required")
+
+    queue = close_queue_record(queue_id)
+    if queue is None:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    return queue
+
 
 @router.post("/join")
 def join_queue_route(join_data: QueueJoin):
