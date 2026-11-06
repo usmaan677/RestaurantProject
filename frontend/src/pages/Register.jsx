@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 function Register() {
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -25,6 +26,7 @@ function Register() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          full_name: fullName,
           email,
           password,
           confirm_password: confirmPassword,
@@ -57,6 +59,21 @@ function Register() {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+        <div>
+          <label htmlFor="fullName" className="block text-sm font-medium text-slate-700">
+            Full Name
+          </label>
+          <input
+            id="fullName"
+            type="text"
+            maxLength={100}
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            className="mt-1 w-full rounded border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-slate-700">
             Email

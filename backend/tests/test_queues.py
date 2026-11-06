@@ -20,6 +20,7 @@ def open_queue_for_service_tests(monkeypatch):
             "status": "open",
         },
     )
+    monkeypatch.setattr(queues.auth, "is_admin", lambda email: email == "admin@queuesmart.com")
 
 
 def setup_function():

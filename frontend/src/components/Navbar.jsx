@@ -107,7 +107,7 @@ function Navbar() {
 
         {user ? (
           <>
-            <span className="text-sm text-slate-500">{user.email}</span>
+            <span className="text-sm text-slate-500">{user.full_name || user.email}</span>
             <button onClick={logOut} className="text-slate-600 hover:text-slate-900">
               Log Out
             </button>
