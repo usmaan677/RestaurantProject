@@ -282,6 +282,12 @@ def join_queue_route(join_data: QueueJoin):
     if service is None:
         raise HTTPException(status_code=404, detail="Service not found")
 
+    if get_active_queue(join_data.service_id) is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Queue is not open for this service",
+        )
+
     if is_user_in_queue(join_data.service_id, join_data.email):
         raise HTTPException(status_code=400, detail="User already in queue for this service")
 
