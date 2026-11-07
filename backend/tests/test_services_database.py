@@ -201,3 +201,17 @@ def test_create_service_requires_email():
     )
 
     assert response.status_code == 422
+
+def test_service_persists_in_database(created_services):
+    service = create_test_service(created_services)
+
+    with database.connection_scope() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM services WHERE id = %s",
+                (service["id"],)
+            )
+            result = cursor.fetchone()
+
+    assert result is not None
+    assert result["name"] == service["name"]

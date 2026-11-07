@@ -31,7 +31,7 @@ def setup_function():
 
 
 def create_test_service(expected_duration=15, priority=3):
-    response = client.post("/api/services/", json={
+    response = client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Takeout",
         "description": "Order food for pickup",
         "expected_duration": expected_duration,

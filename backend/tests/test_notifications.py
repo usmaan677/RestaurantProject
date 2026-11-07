@@ -31,7 +31,7 @@ def setup_function():
 
 
 def create_test_service():
-    response = client.post("/api/services/", json={
+    response = client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Takeout", "description": "Pickup", "priority": 3, "expected_duration": 10
     })
     return response.json()["id"]
@@ -112,7 +112,7 @@ def test_rejoining_sends_close_notification_again():
 
 def test_joining_other_service_does_not_repeat_close_notification():
     takeout_id = create_test_service()
-    dine_in_id = client.post("/api/services/", json={
+    dine_in_id = client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Dine In", "description": "Table", "priority": 3, "expected_duration": 10
     }).json()["id"]
 

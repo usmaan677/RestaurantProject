@@ -4,11 +4,64 @@ import database
 import history
 import notifications
 import queues
+import services
+
+services.services = []
+services.next_service_id = 1
+
+
+def use_fake_services(monkeypatch):
+    services.services.clear()
+    services.next_service_id = 1
+
+    def create_service(service_data):
+        service = {
+            "id": services.next_service_id,
+            **service_data.model_dump()
+        }
+
+        services.next_service_id += 1
+        services.services.append(service)
+        return service
+
+    def get_service(service_id):
+        for service in services.services:
+            if service["id"] == service_id:
+                return service
+        return None
+
+    def list_services():
+        return services.services
+
+    def update_service(service_id, service_data):
+        service = get_service(service_id)
+
+        if service is None:
+            return None
+
+        updated_data = service_data.model_dump(exclude_unset=True)
+        service.update(updated_data)
+        return service
+
+    monkeypatch.setattr(services, "create_service", create_service)
+    monkeypatch.setattr(services, "get_service", get_service)
+    monkeypatch.setattr(services, "list_services", list_services)
+    monkeypatch.setattr(services, "update_service", update_service)
+
+    monkeypatch.setattr(
+        services.auth,
+        "is_admin",
+        lambda email: email == "admin@queuesmart.com"
+    )
+
+    return services.services
+
 
 
 # ---------- Fake queue entries (a plain list instead of MySQL) ----------
 
 def use_fake_queue_entries(monkeypatch):
+    use_fake_services(monkeypatch)
     fake_entries = []  # only people still waiting, like the real table query
     ids_used = []
 
@@ -138,3 +191,6 @@ def use_fake_connection(monkeypatch, rows=()):
 
     monkeypatch.setattr(database, "connection_scope", connection_scope)
     return connection
+
+
+

@@ -1,17 +1,18 @@
 from fastapi.testclient import TestClient
 from main import app
-import services
+from fake_database import use_fake_services
+import pytest
 
 client = TestClient(app)
 
 
-def setup_function():
-    services.services.clear()
-    services.next_service_id = 1
+@pytest.fixture(autouse=True)
+def fake_services(monkeypatch):
+    return use_fake_services(monkeypatch)
     
 
 def test_create_service():
-    response = client.post("/api/services/", json={
+    response = client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Takeout",
         "description": "Order food for pickup",
         "expected_duration": 15,
@@ -24,7 +25,7 @@ def test_create_service():
     
 
 def test_list_services():
-    client.post("/api/services/", json={
+    client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Takeout",
         "description": "Order food for pickup",
         "expected_duration": 15,
@@ -38,7 +39,7 @@ def test_list_services():
     
     
 def test_get_service():
-    client.post("/api/services/", json={
+    client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Takeout",
         "description": "Order food for pickup",
         "expected_duration": 15,
@@ -52,14 +53,14 @@ def test_get_service():
     
     
 def test_update_service():
-    client.post("/api/services/", json={
+    client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Takeout",
         "description": "Order food for pickup",
         "expected_duration": 15,
         "priority": 3
     })
     
-    response = client.put("/api/services/1", json={
+    response = client.put("/api/services/1?email=admin@queuesmart.com", json={
         "priority": 1
     })
     
@@ -69,7 +70,7 @@ def test_update_service():
     
     
 def test_update_service_not_found():
-    response = client.put("/api/services/999", json={
+    response = response = client.put("/api/services/999?email=admin@queuesmart.com", json={
         "priority": 1
     })
     
@@ -77,7 +78,7 @@ def test_update_service_not_found():
     
     
 def test_create_service_missing_name():
-    response = client.post("/api/services/", json={
+    response = client.post("/api/services/?email=admin@queuesmart.com", json={
         "description": "Order food for pickup",
         "expected_duration": 15,
         "priority": 3
@@ -87,7 +88,7 @@ def test_create_service_missing_name():
     
     
 def test_create_service_invalid_duration():
-    response = client.post("/api/services/", json={
+    response = client.post("/api/services/?email=admin@queuesmart.com", json={
        "name": "Takeout",
        "description": "Order food for pickup",
        "expected_duration": 0,
@@ -98,7 +99,7 @@ def test_create_service_invalid_duration():
     
     
 def test_create_service_invalid_priority():
-    response = client.post("/api/services/", json={
+    response = client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "Takeout",
         "description": "Order food for pickup",
         "expected_duration": 15,
@@ -109,7 +110,7 @@ def test_create_service_invalid_priority():
     
     
 def test_create_service_name_too_long():
-    response = client.post("/api/services/", json={
+    response = client.post("/api/services/?email=admin@queuesmart.com", json={
         "name": "A" * 101,
         "description": "Order food for pickup",
         "expected_duration": 15,
